@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI ZIP Modifier</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            width: 90%;
+            max-width: 600px;
+            background: #1e1e1e;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+        .drop-zone {
+            border: 3px dashed #444;
+            padding: 40px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .drop-zone:hover {
+            border-color: #007bff;
+            background: #252525;
+        }
+        #fileInput {
+            display: none;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            background: #2d2d2d;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            resize: vertical;
+            box-sizing: border-box;
+            margin-top: 15px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 15px;
+            width: 100%;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #status {
+            margin-top: 15px;
+            color: #aaa;
+            font-style: italic;
+        }
+        .hidden {
+            display: none;
+        }
+        #downloadBtn {
+            background: #28a745;
+        }
+        #downloadBtn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="drop-zone" id="dropZone">
+        ZIP/RAR I BURAYA AT ÇALIM
+    </div>
+    <input type="file" id="fileInput" accept=".zip">
+
+    <div id="status"></div>
+
+    <div id="analysisSection" class="hidden">
+        <h3>Uygulama Analizi</h3>
+        <p id="analysisText"></p>
+        
+        <textarea id="promptInput" placeholder="Örn: uygulama adını OSMAN TUŞ yap ve tek bir minik kutu değilde büyük kutuya atak"></textarea>
+        <button id="modifyBtn">Uygulamayı Değiştir</button>
+    </div>
+
+    <button id="downloadBtn" class="hidden">Değiştirilmiş ZIP'i İndir</button>
+</div>
+
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const status = document.getElementById('status');
+    const analysisSection = document.getElementById('analysisSection');
+    const analysisText = document.getElementById('analysisText');
+    const promptInput = document.getElementById('promptInput');
+    const modifyBtn = document.getElementById('modifyBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let currentZipPath = '';
+    let originalName = '';
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#007bff';
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.style.borderColor = '#444';
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#444';
+        if (e.dataTransfer.files.length > 0) {
+            handleFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    });
+
+    async function handleFile(file) {
+        if (!file.name.endsWith('.zip')) {
+            status.innerText = "Lütfen sadece ZIP dosyası yükleyin.";
+            return;
+        }
+        originalName = file.name;
+        status.innerText = "Dosya yükleniyor ve analiz ediliyor...";
+        
+        const formData = new FormData();
+        formData.append('zipfile', file);
+
+        try {
+            const response = await fetch('/api/analyze', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                currentZipPath = data.zipPath;
+                analysisText.innerText = data.analysis;
+                analysisSection.classList.remove('hidden');
+                status.innerText = "Analiz tamamlandı.";
+            } else {
+                status.innerText = "Hata: " + data.error;
+            }
+        } catch (err) {
+            status.innerText = "Sunucuya bağlanırken hata oluştu.";
+        }
+    }
+
+    modifyBtn.addEventListener('click', async () => {
+        const prompt = promptInput.value.trim();
+        if (!prompt) return alert("Lütfen bir değişiklik talimatı girin.");
+
+        status.innerText = "Yapay zeka dosyaları düzenliyor...";
+        downloadBtn.classList.add('hidden');
+
+        try {
+            const response = await fetch('/api/modify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ zipPath: currentZipPath, prompt: prompt })
+            });
+
+            if (response.ok) {
+                status.innerText = "Düzenleme tamamlandı! İndirebilirsiniz.";
+                downloadBtn.classList.remove('hidden');
+            } else {
+                const errData = await response.json();
+                status.innerText = "Hata: " + errData.error;
+            }
+        } catch (err) {
+            status.innerText = "Düzenleme sırasında hata oluştu.";
+        }
+    });
+
+    downloadBtn.addEventListener('click', () => {
+        window.location.href = `/api/download?path=${encodeURIComponent(currentZipPath)}&name=${encodeURIComponent(originalName)}`;
+    });
+</script>
+
+</body>
+</html>
